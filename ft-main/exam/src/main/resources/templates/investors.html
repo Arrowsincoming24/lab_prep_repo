@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Investor Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(120deg, #1e2a38, #151e29);
+            color: #eaeaea;
+            font-family: 'Inter', sans-serif;
+            padding: 40px;
+        }
+
+        .header {
+            background-color: #232f3e;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .header h1 {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #ffffff;
+        }
+
+        .search-form {
+            background-color: #2b3b4e;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        input.form-control {
+            background-color: #1f2a37;
+            color: #ffffff;
+            border: 1px solid #3b4d61;
+        }
+
+        input.form-control::placeholder {
+            color: #9daab6;
+        }
+
+        .btn-primary {
+            background-color: #5d9cec;
+            border: none;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            border: none;
+        }
+
+        .btn-warning {
+            background-color: #f0ad4e;
+            border: none;
+        }
+
+        h3, h4 {
+            font-weight: 600;
+        }
+
+        .table {
+            background-color: #1f2a37;
+            color: #eaeaea;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .table thead {
+            background-color: #3b4d61;
+            color: #ffffff;
+        }
+
+        .table td, .table th {
+            vertical-align: middle;
+        }
+
+        .alert-info {
+            background-color: #2b3b4e;
+            border-left: 5px solid #5d9cec;
+            color: #dee2e6;
+        }
+
+        .btn {
+            font-weight: 500;
+        }
+
+        a.btn-warning {
+            box-shadow: 0 4px 10px rgba(255, 193, 7, 0.25);
+        }
+        
+        .audit-info {
+            font-size: 0.8rem;
+            color: #a0aec0;
+        }
+        
+        .uuid-link {
+            color: #5d9cec;
+            text-decoration: none;
+        }
+        
+        .uuid-link:hover {
+            text-decoration: underline;
+        }
+        
+        .filter-form {
+            background-color: #2b3b4e;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Investor Portfolio Dashboard</h1>
+            <p class="text-muted">Empowering smarter investment tracking</p>
+        </div>
+
+        <div class="search-form">
+            <h4>Search Investors</h4>
+            <form action="/investors" method="GET" class="row g-3">
+                <div class="col-md-4">
+                    <label for="name" class="form-label">Investor Name</label>
+                    <input type="text" class="form-control" id="name" name="name" 
+                           placeholder="Type investor name..." th:value="${searchName}">
+                </div>
+                <div class="col-md-4">
+                    <label for="systemId" class="form-label">System ID</label>
+                    <input type="text" class="form-control" id="systemId" name="systemId" 
+                           placeholder="Filter by system ID..." th:value="${searchSystemId}">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Search</button>
+                    <a href="/investors" class="btn btn-secondary">Clear</a>
+                </div>
+            </form>
+        </div>
+
+        <h3 class="mb-3">Investor Listing</h3>
+        <div th:if="${investors.empty}" class="alert alert-info">
+            No investors found matching your search.
+        </div>
+
+        <div class="table-responsive">
+            <table th:if="${!investors.empty}" class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Stock</th>
+                        <th>Amount</th>
+                        <th>Investment Date</th>
+                        <th>Audit Info</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="investor : ${investors}">
+                        <td th:text="${investor.id}"></td>
+                        <td th:text="${investor.name}"></td>
+                        <td th:text="${investor.email}"></td>
+                        <td th:text="${investor.stockName}"></td>
+                        <td th:text="${'$' + investor.investmentAmount}"></td>
+                        <td th:text="${#temporals.format(investor.investmentDate, 'yyyy-MM-dd')}"></td>
+                        <td>
+                            <div class="audit-info">
+                                <div><strong>Generated:</strong> <span th:text="${#temporals.format(investor.generationDate, 'yyyy-MM-dd HH:mm')}"></span></div>
+                                <div><strong>System:</strong> <span th:text="${investor.systemId}"></span></div>
+                                <div>
+                                    <strong>UUID:</strong> 
+                                    <a th:href="@{'/investors/uuid/' + ${investor.uuid}}" class="uuid-link" th:text="${investor.uuid}"></a>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-4 d-flex justify-content-between">
+            <form action="/investors/recent" method="GET" class="filter-form row g-3">
+                <div class="col-md-8">
+                    <label for="since" class="form-label">Show investors created since</label>
+                    <input type="datetime-local" class="form-control" id="since" name="since" required>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Filter</button>
+                </div>
+            </form>
+            
+            <div class="align-self-end">
+                <a href="/generate" class="btn btn-warning" target="_blank">Generate Dummy Data</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
