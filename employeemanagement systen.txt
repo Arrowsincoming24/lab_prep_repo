@@ -1,0 +1,1021 @@
+/**
+ * SPRING BOOT EMPLOYEE MANAGEMENT APPLICATION
+ * 
+ * This project demonstrates:
+ * - Employee entity with relationships
+ * - Department entity
+ * - RESTful API endpoints with validation
+ * - Exception handling
+ * - Audit columns
+ * - MySQL integration
+ */
+
+/*
+ * PROJECT STRUCTURE
+ * 
+ * src/main/java/com/example/employeemanagement/
+ * ├── EmployeeManagementApplication.java
+ * ├── model/
+ * │   ├── Employee.java
+ * │   ├── Department.java
+ * │   └── Auditable.java
+ * ├── repository/
+ * │   ├── EmployeeRepository.java
+ * │   └── DepartmentRepository.java
+ * ├── service/
+ * │   ├── EmployeeService.java
+ * │   └── DepartmentService.java
+ * ├── controller/
+ * │   ├── EmployeeController.java
+ * │   └── DepartmentController.java
+ * ├── dto/
+ * │   ├── EmployeeDTO.java
+ * │   ├── DepartmentDTO.java
+ * │   └── TransferDTO.java
+ * ├── exception/
+ * │   ├── GlobalExceptionHandler.java
+ * │   ├── ResourceNotFoundException.java
+ * │   └── ValidationException.java
+ * └── config/
+ *     └── AuditConfig.java
+ * 
+ * src/main/resources/
+ * └── application.properties
+ */
+
+/**
+ * Step 1: Set up project dependencies in pom.xml
+ */
+
+// pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.0</version>
+        <relativePath/>
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>employee-management</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>employee-management</name>
+    <description>Employee Management System</description>
+    
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+/**
+ * Step 2: Configure application properties for MySQL
+ */
+
+// application.properties
+spring.datasource.url=jdbc:mysql://localhost:3306/employee_management_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=password
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+spring.jpa.properties.hibernate.format_sql=true
+
+/**
+ * Step 3: Create the main application class
+ */
+
+// EmployeeManagementApplication.java
+package com.example.employeemanagement;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+
+@SpringBootApplication
+@EnableJpaAuditing
+public class EmployeeManagementApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(EmployeeManagementApplication.class, args);
+    }
+}
+
+/**
+ * Step 4: Create the audit configuration
+ */
+
+// AuditConfig.java
+package com.example.employeemanagement.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.domain.AuditorAware;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+
+import java.util.Optional;
+
+@Configuration
+@EnableJpaAuditing(auditorAwareRef = "auditorProvider")
+public class AuditConfig {
+    @Bean
+    public AuditorAware<String> auditorProvider() {
+        // In a real application, this would return the current authenticated user
+        return () -> Optional.of("system");
+    }
+}
+
+/**
+ * Step 5: Create the Auditable base class
+ */
+
+// Auditable.java
+package com.example.employeemanagement.model;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.MappedSuperclass;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
+
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
+public abstract class Auditable {
+    @CreatedBy
+    @Column(name = "created_by", nullable = false, updatable = false)
+    private String createdBy;
+
+    @CreatedDate
+    @Column(name = "created_date", nullable = false, updatable = false)
+    private LocalDateTime createdDate;
+
+    @LastModifiedBy
+    @Column(name = "last_modified_by")
+    private String lastModifiedBy;
+
+    @LastModifiedDate
+    @Column(name = "last_modified_date")
+    private LocalDateTime lastModifiedDate;
+    
+    // Getters and setters
+    public String getCreatedBy() {
+        return createdBy;
+    }
+    
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+    
+    public LocalDateTime getCreatedDate() {
+        return createdDate;
+    }
+    
+    public void setCreatedDate(LocalDateTime createdDate) {
+        this.createdDate = createdDate;
+    }
+    
+    public String getLastModifiedBy() {
+        return lastModifiedBy;
+    }
+    
+    public void setLastModifiedBy(String lastModifiedBy) {
+        this.lastModifiedBy = lastModifiedBy;
+    }
+    
+    public LocalDateTime getLastModifiedDate() {
+        return lastModifiedDate;
+    }
+    
+    public void setLastModifiedDate(LocalDateTime lastModifiedDate) {
+        this.lastModifiedDate = lastModifiedDate;
+    }
+}
+
+/**
+ * Step 6: Create the entity classes
+ */
+
+// Department.java
+package com.example.employeemanagement.model;
+
+import jakarta.persistence.*;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "departments")
+public class Department extends Auditable {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true)
+    private String name;
+    
+    @Column
+    private String location;
+    
+    @Column
+    private String description;
+    
+    @OneToMany(mappedBy = "department", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Set<Employee> employees = new HashSet<>();
+    
+    // Constructors
+    public Department() {
+    }
+    
+    public Department(String name, String location, String description) {
+        this.name = name;
+        this.location = location;
+        this.description = description;
+    }
+    
+    // Getters and setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+    
+    public String getLocation() {
+        return location;
+    }
+    
+    public void setLocation(String location) {
+        this.location = location;
+    }
+    
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
+    }
+    
+    public Set<Employee> getEmployees() {
+        return employees;
+    }
+    
+    public void setEmployees(Set<Employee> employees) {
+        this.employees = employees;
+    }
+}
+
+// Employee.java
+package com.example.employeemanagement.model;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+@Entity
+@Table(name = "employees")
+public class Employee extends Auditable {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String firstName;
+    
+    @Column(nullable = false)
+    private String lastName;
+    
+    @Column(nullable = false, unique = true)
+    private String email;
+    
+    @Column(unique = true)
+    private String employeeId;
+    
+    @Column
+    private String phoneNumber;
+    
+    @Column
+    private LocalDate hireDate;
+    
+    @Column(precision = 10, scale = 2)
+    private BigDecimal salary;
+    
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "department_id")
+    private Department department;
+    
+    @Column
+    private String position;
+    
+    @Column
+    @Enumerated(EnumType.STRING)
+    private EmploymentStatus status;
+    
+    // Employment Status Enum
+    public enum EmploymentStatus {
+        ACTIVE, ON_LEAVE, TERMINATED, RETIRED
+    }
+    
+    // Constructors
+    public Employee() {
+    }
+    
+    public Employee(String firstName, String lastName, String email, String employeeId) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.employeeId = employeeId;
+        this.status = EmploymentStatus.ACTIVE;
+    }
+    
+    // Getters and setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+    
+    public String getLastName() {
+        return lastName;
+    }
+    
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+    
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
+    }
+    
+    public String getEmployeeId() {
+        return employeeId;
+    }
+    
+    public void setEmployeeId(String employeeId) {
+        this.employeeId = employeeId;
+    }
+    
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+    
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+    
+    public LocalDate getHireDate() {
+        return hireDate;
+    }
+    
+    public void setHireDate(LocalDate hireDate) {
+        this.hireDate = hireDate;
+    }
+    
+    public BigDecimal getSalary() {
+        return salary;
+    }
+    
+    public void setSalary(BigDecimal salary) {
+        this.salary = salary;
+    }
+    
+    public Department getDepartment() {
+        return department;
+    }
+    
+    public void setDepartment(Department department) {
+        this.department = department;
+    }
+    
+    public String getPosition() {
+        return position;
+    }
+    
+    public void setPosition(String position) {
+        this.position = position;
+    }
+    
+    public EmploymentStatus getStatus() {
+        return status;
+    }
+    
+    public void setStatus(EmploymentStatus status) {
+        this.status = status;
+    }
+}
+
+/**
+ * Step 7: Create DTOs for request and response
+ */
+
+// DepartmentDTO.java
+package com.example.employeemanagement.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public class DepartmentDTO {
+    private Long id;
+    
+    @NotBlank(message = "Department name is required")
+    @Size(min = 2, max = 50, message = "Department name must be between 2 and 50 characters")
+    private String name;
+    
+    private String location;
+    
+    private String description;
+    
+    // Constructors
+    public DepartmentDTO() {
+    }
+    
+    public DepartmentDTO(String name, String location, String description) {
+        this.name = name;
+        this.location = location;
+        this.description = description;
+    }
+    
+    // Getters and setters
+    public Long getId() {
+        return id;
+    }
+    
+    public void setId(Long id) {
+        this.id = id;
+    }
+    
+    public String getName() {
+        return name;
+    }
+    
+    public void setName(String name) {
+        this.name = name;
+    }
+    
+    public String getLocation() {
+        return location;
+    }
+    
+    public void setLocation(String location) {
+        this.location = location;
+    }
+    
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
+    }
+}
+
+// EmployeeDTO.java
+package com.example.employeemanagement.dto;
+
+import com.example.employeemanagement.model.Employee.EmploymentStatus;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+public class EmployeeDTO {
+    private Long id;
+    
+    @NotBlank(message = "First name is required")
+    @Size(min = 2, max = 50, message = "First name must be between 2 and 50 characters")
+    private String firstName;
+    
+    @NotBlank(message = "Last name is required")
+    @Size(min = 2, max = 50, message = "Last name must be between 2 and 50 characters")
+    private String lastName;
+    
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    private String email;
+    
+    @NotBlank(message = "Employee ID is required")
+    @Pattern(regexp = "^EMP-\\d{6}$", message = "Employee ID must be in format EMP-XXXXXX where X is a digit")
+    private String employeeId;
+    
+    @Pattern(regexp = "^\\d{10}$", message = "Phone number must be 10 digits")
+    private String phoneNumber;
+    
+    private LocalDate hireDate;
+    
+    @Positive(message = "Salary must be positive")
+    private BigDecimal salary;
+    
+    private Long departmentId;
+    
+    private String position;
+    
+    private EmploymentStatus status;
+    
+    // Constructors
+    public EmployeeDTO() {
+    }
+    
+    // Getters and setters
+    public Long getId() {
+        return id;
+    }
+    
+    public void setId(Long id) {
+        this.id = id;
+    }
+    
+    public String getFirstName() {
+        return firstName;
+    }
+    
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+    
+    public String getLastName() {
+        return lastName;
+    }
+    
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+    
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
+    }
+    
+    public String getEmployeeId() {
+        return employeeId;
+    }
+    
+    public void setEmployeeId(String employeeId) {
+        this.employeeId = employeeId;
+    }
+    
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+    
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+    
+    public LocalDate getHireDate() {
+        return hireDate;
+    }
+    
+    public void setHireDate(LocalDate hireDate) {
+        this.hireDate = hireDate;
+    }
+    
+    public BigDecimal getSalary() {
+        return salary;
+    }
+    
+    public void setSalary(BigDecimal salary) {
+        this.salary = salary;
+    }
+    
+    public Long getDepartmentId() {
+        return departmentId;
+    }
+    
+    public void setDepartmentId(Long departmentId) {
+        this.departmentId = departmentId;
+    }
+    
+    public String getPosition() {
+        return position;
+    }
+    
+    public void setPosition(String position) {
+        this.position = position;
+    }
+    
+    public EmploymentStatus getStatus() {
+        return status;
+    }
+    
+    public void setStatus(EmploymentStatus status) {
+        this.status = status;
+    }
+}
+
+// TransferDTO.java
+package com.example.employeemanagement.dto;
+
+import jakarta.validation.constraints.NotNull;
+
+public class TransferDTO {
+    @NotNull(message = "Employee ID is required")
+    private Long employeeId;
+    
+    @NotNull(message = "Department ID is required")
+    private Long departmentId;
+    
+    // Constructors
+    public TransferDTO() {
+    }
+    
+    public TransferDTO(Long employeeId, Long departmentId) {
+        this.employeeId = employeeId;
+        this.departmentId = departmentId;
+    }
+    
+    // Getters and setters
+    public Long getEmployeeId() {
+        return employeeId;
+    }
+    
+    public void setEmployeeId(Long employeeId) {
+        this.employeeId = employeeId;
+    }
+    
+    public Long getDepartmentId() {
+        return departmentId;
+    }
+    
+    public void setDepartmentId(Long departmentId) {
+        this.departmentId = departmentId;
+    }
+}
+
+/**
+ * Step 8: Create exception classes
+ */
+
+// ResourceNotFoundException.java
+package com.example.employeemanagement.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+
+// ValidationException.java
+package com.example.employeemanagement.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.BAD_REQUEST)
+public class ValidationException extends RuntimeException {
+    public ValidationException(String message) {
+        super(message);
+    }
+}
+
+// GlobalExceptionHandler.java
+package com.example.employeemanagement.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put("error", ex.getMessage());
+        return new ResponseEntity<>(errors, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<Map<String, String>> handleValidationException(ValidationException ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put("error", ex.getMessage());
+        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleGlobalException(Exception ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put("error", "An unexpected error occurred: " + ex.getMessage());
+        return new ResponseEntity<>(errors, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+/**
+ * Step 9: Create repository interfaces
+ */
+
+// DepartmentRepository.java
+package com.example.employeemanagement.repository;
+
+import com.example.employeemanagement.model.Department;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface DepartmentRepository extends JpaRepository<Department, Long> {
+    boolean existsByName(String name);
+    Optional<Department> findByName(String name);
+}
+
+// EmployeeRepository.java
+package com.example.employeemanagement.repository;
+
+import com.example.employeemanagement.model.Employee;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+    boolean existsByEmail(String email);
+    boolean existsByEmployeeId(String employeeId);
+    Optional<Employee> findByEmail(String email);
+    Optional<Employee> findByEmployeeId(String employeeId);
+    List<Employee> findAllByDepartmentId(Long departmentId);
+}
+
+/**
+ * Step 10: Create service classes
+ */
+
+// DepartmentService.java
+package com.example.employeemanagement.service;
+
+import com.example.employeemanagement.dto.DepartmentDTO;
+import com.example.employeemanagement.exception.ResourceNotFoundException;
+import com.example.employeemanagement.exception.ValidationException;
+import com.example.employeemanagement.model.Department;
+import com.example.employeemanagement.repository.DepartmentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class DepartmentService {
+
+    private final DepartmentRepository departmentRepository;
+
+    @Autowired
+    public DepartmentService(DepartmentRepository departmentRepository) {
+        this.departmentRepository = departmentRepository;
+    }
+
+    public Department createDepartment(DepartmentDTO departmentDTO) {
+        // Check if department name already exists
+        if (departmentRepository.existsByName(departmentDTO.getName())) {
+            throw new ValidationException("Department already exists with name: " + departmentDTO.getName());
+        }
+
+        Department department = new Department();
+        department.setName(departmentDTO.getName());
+        department.setLocation(departmentDTO.getLocation());
+        department.setDescription(departmentDTO.getDescription());
+        
+        return departmentRepository.save(department);
+    }
+
+    public Department getDepartmentById(Long id) {
+        return departmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + id));
+    }
+    
+    public List<Department> getAllDepartments() {
+        return departmentRepository.findAll();
+    }
+    
+    public Department updateDepartment(Long id, DepartmentDTO departmentDTO) {
+        Department department = getDepartmentById(id);
+        
+        // Check if updated name already exists for another department
+        if (!department.getName().equals(departmentDTO.getName()) && 
+            departmentRepository.existsByName(departmentDTO.getName())) {
+            throw new ValidationException("Department already exists with name: " + departmentDTO.getName());
+        }
+        
+        department.setName(departmentDTO.getName());
+        department.setLocation(departmentDTO.getLocation());
+        department.setDescription(departmentDTO.getDescription());
+        
+        return departmentRepository.save(department);
+    }
+    
+    public void deleteDepartment(Long id) {
+        Department department = getDepartmentById(id);
+        
+        // Check if department has employees
+        if (!department.getEmployees().isEmpty()) {
+            throw new ValidationException("Cannot delete department with active employees");
+        }
+        
+        departmentRepository.delete(department);
+    }
+}
+
+// EmployeeService.java
+package com.example.employeemanagement.service;
+
+import com.example.employeemanagement.dto.EmployeeDTO;
+import com.example.employeemanagement.dto.TransferDTO;
+import com.example.employeemanagement.exception.ResourceNotFoundException;
+import com.example.employeemanagement.exception.ValidationException;
+import com.example.employeemanagement.model.Department;
+import com.example.employeemanagement.model.Employee;
+import com.example.employeemanagement.repository.DepartmentRepository;
+import com.example.employeemanagement.repository.EmployeeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@Service
+public class EmployeeService {
+
+    private final EmployeeRepository employeeRepository;
+    private final DepartmentRepository departmentRepository;
+
+    @Autowired
+    public EmployeeService(EmployeeRepository employeeRepository, DepartmentRepository departmentRepository) {
+        this.employeeRepository = employeeRepository;
+        this.departmentRepository = departmentRepository;
+    }
+
+    public Employee createEmployee(EmployeeDTO employeeDTO) {
+        // Check if email already exists
+        if (employeeRepository.existsByEmail(employeeDTO.getEmail())) {
+            throw new ValidationException("Email already exists: " + employeeDTO.getEmail());
+        }
+        
+        // Check if employee ID already exists
+        if (employeeRepository.existsByEmployeeId(employeeDTO.getEmployeeId())) {
+            throw new ValidationException("Employee ID already exists: " + employeeDTO.getEmployeeId());
+        }
+
+        Employee employee = new Employee();
+        employee.setFirstName(employeeDTO.getFirstName());
+        employee.setLastName(employeeDTO.getLastName());
+        employee.setEmail(employeeDTO.getEmail());
+        employee.setEmployeeId(employeeDTO.getEmployeeId());
+        employee.setPhoneNumber(employeeDTO.getPhoneNumber());
+        
+        // Set hire date to today if not provided
+        employee.setHireDate(employeeDTO.getHireDate() != null ? employeeDTO.getHireDate() : LocalDate.now());
+        
+        employee.setSalary(employeeDTO.getSalary());
+        employee.setPosition(employeeDTO.getPosition());
+        
+        // Set status to ACTIVE if not provided
+        employee.setStatus(employeeDTO.getStatus() != null ? employeeDTO.getStatus() : Employee.EmploymentStatus.ACTIVE);
+        
+        // Set department if provided
+        if (employeeDTO.getDepartmentId() != null) {
+            Department department = departmentRepository.findById(employeeDTO.getDepartmentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Department not found with id: " + employeeDTO.getDepartmentId()));
+            employee.setDepartment(department);
+        }
+        
+        return employeeRepository.save(employee);
+    }
+
+    public Employee getEmployeeById(Long id) {
+        return employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
+    }
+    
+    public List<Employee> getAllEmployees() {
+        return employeeRepository.findAll();
+    }
+    
+    public List<Employee> getEmployeesByDepartment(Long departmentId) {
+        // Verify department exists
+        if (!departmentRepository.existsById(departmentId)) {
+            throw new ResourceNotFoundException("Department not found with id: " + departmentId);
+        }
+        
+        return employeeRepository.findAllByDepartmentId(departmentId);
+    }
+    
+    public Employee updateEmployee(Long id, EmployeeDTO employeeDTO) {
+        Employee employee = getEmployeeById(id);
+        
+        // Check if email already exists for another employee
+        if (!employee.getEmail().equals(employeeDTO.getEmail()) && 
+            employeeRepository.existsByEmail(employeeDTO.getEmail())) {
+            throw new ValidationException("Email already exists: " + employeeDTO.getEmail());
+        }
+        
+        // Check if employee ID already exists for another employee
+        if (!employee.getEmployeeId().equals(employeeDTO.getEmployeeId()) && 
+            employeeRepository.existsByEmployeeId(employeeDTO.getEmployeeId())) {
+            throw new ValidationException("Employee ID already exists: " + employeeDTO.getEmployeeId());
+        }
+        
+        employee.setFirstName(employeeDTO.getFirstName());
+        employee.setLastName(employeeDTO.getLastName());
+        employee.setEmail(employeeDTO.getEmail());
+        employee.setEmployeeId(employeeDTO
