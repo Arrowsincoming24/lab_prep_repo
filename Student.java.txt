@@ -1,0 +1,876 @@
+// Student.java
+package com.example.studentcourse.model;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "students")
+@Data
+@EqualsAndHashCode(callSuper = false)
+@NoArgsConstructor
+@AllArgsConstructor
+public class Student extends Auditable {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "student_courses",
+        joinColumns = @JoinColumn(name = "student_id"),
+        inverseJoinColumns = @JoinColumn(name = "course_id")
+    )
+    private Set<Course> courses = new HashSet<>();
+    
+    // Explicit getters and setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public Set<Course> getCourses() {
+        return courses;
+    }
+
+    public void setCourses(Set<Course> courses) {
+        this.courses = courses;
+    }
+}
+
+// Course.java
+package com.example.studentcourse.model;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "courses")
+@Data
+@EqualsAndHashCode(callSuper = false)
+@NoArgsConstructor
+@AllArgsConstructor
+public class Course extends Auditable {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(name = "credit_hours")
+    private Integer creditHours;
+    
+    @Column
+    private String description;
+
+    @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY)
+    private Set<Student> students = new HashSet<>();
+    
+    // Explicit getters and setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Integer getCreditHours() {
+        return creditHours;
+    }
+
+    public void setCreditHours(Integer creditHours) {
+        this.creditHours = creditHours;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Set<Student> getStudents() {
+        return students;
+    }
+
+    public void setStudents(Set<Student> students) {
+        this.students = students;
+    }
+}
+
+// Auditable.java (for completeness, let's also add explicit getters and setters here)
+package com.example.studentcourse.model;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.MappedSuperclass;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
+
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
+@Getter
+@Setter
+public abstract class Auditable {
+    @CreatedBy
+    @Column(name = "created_by", nullable = false, updatable = false)
+    private String createdBy;
+
+    @CreatedDate
+    @Column(name = "created_date", nullable = false, updatable = false)
+    private LocalDateTime createdDate;
+
+    @LastModifiedBy
+    @Column(name = "last_modified_by")
+    private String lastModifiedBy;
+
+    @LastModifiedDate
+    @Column(name = "last_modified_date")
+    private LocalDateTime lastModifiedDate;
+    
+    // Explicit getters and setters
+    public String getCreatedBy() {
+        return createdBy;
+    }
+    
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+    
+    public LocalDateTime getCreatedDate() {
+        return createdDate;
+    }
+    
+    public void setCreatedDate(LocalDateTime createdDate) {
+        this.createdDate = createdDate;
+    }
+    
+    public String getLastModifiedBy() {
+        return lastModifiedBy;
+    }
+    
+    public void setLastModifiedBy(String lastModifiedBy) {
+        this.lastModifiedBy = lastModifiedBy;
+    }
+    
+    public LocalDateTime getLastModifiedDate() {
+        return lastModifiedDate;
+    }
+    
+    public void setLastModifiedDate(LocalDateTime lastModifiedDate) {
+        this.lastModifiedDate = lastModifiedDate;
+    }
+}
+
+
+
+/**
+ * SPRING BOOT STUDENT-COURSE APPLICATION
+ * 
+ * This project demonstrates:
+ * - Many-to-many relationship between Student and Course
+ * - RESTful API endpoints with validation
+ * - Exception handling
+ * - Audit columns
+ * - MySQL integration
+ */
+
+/*
+ * PROJECT STRUCTURE
+ * 
+ * src/main/java/com/example/studentcourse/
+ * ├── StudentCourseApplication.java
+ * ├── model/
+ * │   ├── Student.java
+ * │   ├── Course.java
+ * │   └── Auditable.java
+ * ├── repository/
+ * │   ├── StudentRepository.java
+ * │   └── CourseRepository.java
+ * ├── service/
+ * │   ├── StudentService.java
+ * │   └── CourseService.java
+ * ├── controller/
+ * │   ├── StudentController.java
+ * │   └── CourseController.java
+ * ├── dto/
+ * │   ├── StudentDTO.java
+ * │   ├── CourseDTO.java
+ * │   └── EnrollmentDTO.java
+ * ├── exception/
+ * │   ├── CustomExceptionHandler.java
+ * │   ├── ResourceNotFoundException.java
+ * │   └── ValidationException.java
+ * └── config/
+ *     └── AuditConfig.java
+ * 
+ * src/main/resources/
+ * └── application.properties
+ */
+
+/**
+ * Step 1: Set up project dependencies in pom.xml
+ */
+
+// pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.0</version>
+        <relativePath/>
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>student-course</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>student-course</name>
+    <description>Student Course Management System</description>
+    
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+/**
+ * Step 2: Configure application properties for MySQL
+ */
+
+// application.properties
+spring.datasource.url=jdbc:mysql://localhost:3306/student_course_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=password
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+spring.jpa.properties.hibernate.format_sql=true
+
+/**
+ * Step 3: Create the main application class
+ */
+
+// StudentCourseApplication.java
+package com.example.studentcourse;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+
+@SpringBootApplication
+@EnableJpaAuditing
+public class StudentCourseApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(StudentCourseApplication.class, args);
+    }
+}
+
+/**
+ * Step 4: Create the audit configuration
+ */
+
+// AuditConfig.java
+package com.example.studentcourse.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.domain.AuditorAware;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+
+import java.util.Optional;
+
+@Configuration
+@EnableJpaAuditing(auditorAwareRef = "auditorProvider")
+public class AuditConfig {
+    @Bean
+    public AuditorAware<String> auditorProvider() {
+        // In a real application, this would return the current authenticated user
+        return () -> Optional.of("system");
+    }
+}
+
+/**
+ * Step 5: Create the Auditable base class
+ */
+
+// Auditable.java
+package com.example.studentcourse.model;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.MappedSuperclass;
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
+
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
+@Getter
+@Setter
+public abstract class Auditable {
+    @CreatedBy
+    @Column(name = "created_by", nullable = false, updatable = false)
+    private String createdBy;
+
+    @CreatedDate
+    @Column(name = "created_date", nullable = false, updatable = false)
+    private LocalDateTime createdDate;
+
+    @LastModifiedBy
+    @Column(name = "last_modified_by")
+    private String lastModifiedBy;
+
+    @LastModifiedDate
+    @Column(name = "last_modified_date")
+    private LocalDateTime lastModifiedDate;
+}
+
+/**
+ * Step 6: Create the entity classes
+ */
+
+// Student.java
+package com.example.studentcourse.model;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "students")
+@Data
+@EqualsAndHashCode(callSuper = false)
+@NoArgsConstructor
+@AllArgsConstructor
+public class Student extends Auditable {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "student_courses",
+        joinColumns = @JoinColumn(name = "student_id"),
+        inverseJoinColumns = @JoinColumn(name = "course_id")
+    )
+    private Set<Course> courses = new HashSet<>();
+}
+
+// Course.java
+package com.example.studentcourse.model;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "courses")
+@Data
+@EqualsAndHashCode(callSuper = false)
+@NoArgsConstructor
+@AllArgsConstructor
+public class Course extends Auditable {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(name = "credit_hours")
+    private Integer creditHours;
+    
+    @Column
+    private String description;
+
+    @ManyToMany(mappedBy = "courses", fetch = FetchType.LAZY)
+    private Set<Student> students = new HashSet<>();
+}
+
+/**
+ * Step 7: Create DTOs for request and response
+ */
+
+// StudentDTO.java
+package com.example.studentcourse.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class StudentDTO {
+    private Long id;
+    
+    @NotBlank(message = "Name cannot be empty")
+    private String name;
+    
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    private String email;
+}
+
+// CourseDTO.java
+package com.example.studentcourse.dto;
+
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CourseDTO {
+    private Long id;
+    
+    @NotBlank(message = "Course name cannot be empty")
+    private String name;
+    
+    @Min(value = 1, message = "Credit hours must be at least 1")
+    private Integer creditHours;
+    
+    private String description;
+}
+
+// EnrollmentDTO.java
+package com.example.studentcourse.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class EnrollmentDTO {
+    @NotNull(message = "Student ID is required")
+    private Long studentId;
+    
+    @NotNull(message = "Course ID is required")
+    private Long courseId;
+}
+
+/**
+ * Step 8: Create repository interfaces
+ */
+
+// StudentRepository.java
+package com.example.studentcourse.repository;
+
+import com.example.studentcourse.model.Student;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface StudentRepository extends JpaRepository<Student, Long> {
+    Optional<Student> findByEmail(String email);
+    boolean existsByEmail(String email);
+}
+
+// CourseRepository.java
+package com.example.studentcourse.repository;
+
+import com.example.studentcourse.model.Course;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface CourseRepository extends JpaRepository<Course, Long> {
+    boolean existsByName(String name);
+}
+
+/**
+ * Step 9: Create exception classes
+ */
+
+// ResourceNotFoundException.java
+package com.example.studentcourse.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+
+// ValidationException.java
+package com.example.studentcourse.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.BAD_REQUEST)
+public class ValidationException extends RuntimeException {
+    public ValidationException(String message) {
+        super(message);
+    }
+}
+
+// CustomExceptionHandler.java
+package com.example.studentcourse.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@ControllerAdvice
+public class CustomExceptionHandler {
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put("error", ex.getMessage());
+        return new ResponseEntity<>(errors, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<Map<String, String>> handleValidationException(ValidationException ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put("error", ex.getMessage());
+        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleGlobalException(Exception ex) {
+        Map<String, String> errors = new HashMap<>();
+        errors.put("error", "An unexpected error occurred: " + ex.getMessage());
+        return new ResponseEntity<>(errors, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+
+/**
+ * Step 10: Create service classes
+ */
+
+// StudentService.java
+package com.example.studentcourse.service;
+
+import com.example.studentcourse.dto.StudentDTO;
+import com.example.studentcourse.exception.ResourceNotFoundException;
+import com.example.studentcourse.exception.ValidationException;
+import com.example.studentcourse.model.Student;
+import com.example.studentcourse.repository.StudentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class StudentService {
+
+    private final StudentRepository studentRepository;
+
+    @Autowired
+    public StudentService(StudentRepository studentRepository) {
+        this.studentRepository = studentRepository;
+    }
+
+    public Student createStudent(StudentDTO studentDTO) {
+        // Check if email already exists
+        if (studentRepository.existsByEmail(studentDTO.getEmail())) {
+            throw new ValidationException("Email already exists: " + studentDTO.getEmail());
+        }
+
+        Student student = new Student();
+        student.setName(studentDTO.getName());
+        student.setEmail(studentDTO.getEmail());
+        
+        return studentRepository.save(student);
+    }
+
+    public Student getStudentById(Long id) {
+        return studentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + id));
+    }
+}
+
+// CourseService.java
+package com.example.studentcourse.service;
+
+import com.example.studentcourse.dto.CourseDTO;
+import com.example.studentcourse.dto.EnrollmentDTO;
+import com.example.studentcourse.exception.ResourceNotFoundException;
+import com.example.studentcourse.exception.ValidationException;
+import com.example.studentcourse.model.Course;
+import com.example.studentcourse.model.Student;
+import com.example.studentcourse.repository.CourseRepository;
+import com.example.studentcourse.repository.StudentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Set;
+
+@Service
+public class CourseService {
+
+    private final CourseRepository courseRepository;
+    private final StudentRepository studentRepository;
+
+    @Autowired
+    public CourseService(CourseRepository courseRepository, StudentRepository studentRepository) {
+        this.courseRepository = courseRepository;
+        this.studentRepository = studentRepository;
+    }
+
+    public Course createCourse(CourseDTO courseDTO) {
+        if (courseRepository.existsByName(courseDTO.getName())) {
+            throw new ValidationException("Course already exists with name: " + courseDTO.getName());
+        }
+
+        Course course = new Course();
+        course.setName(courseDTO.getName());
+        course.setCreditHours(courseDTO.getCreditHours());
+        course.setDescription(courseDTO.getDescription());
+        
+        return courseRepository.save(course);
+    }
+
+    public void enrollStudentToCourse(EnrollmentDTO enrollmentDTO) {
+        Student student = studentRepository.findById(enrollmentDTO.getStudentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + enrollmentDTO.getStudentId()));
+        
+        Course course = courseRepository.findById(enrollmentDTO.getCourseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + enrollmentDTO.getCourseId()));
+        
+        // Add course to student's courses
+        student.getCourses().add(course);
+        studentRepository.save(student);
+    }
+
+    public Set<Student> getStudentsByCourseId(Long courseId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+        
+        return course.getStudents();
+    }
+}
+
+/**
+ * Step 11: Create controller classes
+ */
+
+// StudentController.java
+package com.example.studentcourse.controller;
+
+import com.example.studentcourse.dto.StudentDTO;
+import com.example.studentcourse.model.Student;
+import com.example.studentcourse.service.StudentService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/students")
+public class StudentController {
+
+    private final StudentService studentService;
+
+    @Autowired
+    public StudentController(StudentService studentService) {
+        this.studentService = studentService;
+    }
+
+    @PostMapping
+    public ResponseEntity<Student> createStudent(@Valid @RequestBody StudentDTO studentDTO) {
+        Student createdStudent = studentService.createStudent(studentDTO);
+        return new ResponseEntity<>(createdStudent, HttpStatus.CREATED);
+    }
+}
+
+// CourseController.java
+package com.example.studentcourse.controller;
+
+import com.example.studentcourse.dto.CourseDTO;
+import com.example.studentcourse.dto.EnrollmentDTO;
+import com.example.studentcourse.model.Course;
+import com.example.studentcourse.model.Student;
+import com.example.studentcourse.service.CourseService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Set;
+
+@RestController
+@RequestMapping("/api/courses")
+public class CourseController {
+
+    private final CourseService courseService;
+
+    @Autowired
+    public CourseController(CourseService courseService) {
+        this.courseService = courseService;
+    }
+
+    @PostMapping
+    public ResponseEntity<Course> createCourse(@Valid @RequestBody CourseDTO courseDTO) {
+        Course createdCourse = courseService.createCourse(courseDTO);
+        return new ResponseEntity<>(createdCourse, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/enroll")
+    public ResponseEntity<String> enrollStudentToCourse(@Valid @RequestBody EnrollmentDTO enrollmentDTO) {
+        courseService.enrollStudentToCourse(enrollmentDTO);
+        return new ResponseEntity<>("Student enrolled successfully", HttpStatus.OK);
+    }
+
+    @GetMapping("/{courseId}/students")
+    public ResponseEntity<Set<Student>> getStudentsByCourseId(@PathVariable Long courseId) {
+        Set<Student> students = courseService.getStudentsByCourseId(courseId);
+        return new ResponseEntity<>(students, HttpStatus.OK);
+    }
+}
